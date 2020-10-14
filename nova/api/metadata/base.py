@@ -16,7 +16,9 @@
 
 """Instance Metadata information."""
 
+import datetime
 import itertools
+import jwt
 import os
 import posixpath
 
@@ -90,6 +92,7 @@ VERSION = "version"
 CONTENT = "content"
 CONTENT_DIR = "content"
 MD_JSON_NAME = "meta_data.json"
+ID_JWT_NAME = "identity_data.jwt"
 VD_JSON_NAME = "vendor_data.json"
 VD2_JSON_NAME = "vendor_data2.json"
 NW_JSON_NAME = "network_data.json"
@@ -221,6 +224,7 @@ class InstanceMetadata(object):
                          VD_JSON_NAME: self._vendor_data,
                          VD2_JSON_NAME: self._vendor_data2,
                          MD_JSON_NAME: self._metadata_as_json,
+                         ID_JWT_NAME: self._identity_as_jwt,
                          NW_JSON_NAME: self._network_data,
                          VERSION: self._handle_version,
                          CONTENT: self._handle_content}
@@ -526,6 +530,39 @@ class InstanceMetadata(object):
             return jsonutils.dump_as_bytes(j)
 
         raise KeyError(path)
+
+    def _identity_as_jwt(self, version, path):
+
+        id_data = {
+            'project-id': self.instance.project_id,
+            'project-name': self.instance.system_metadata['owner_project_name'],
+            'instance-id': self.instance.uuid,
+            'instance-name': self.instance.hostname
+        }
+
+        id_data['meta'] = self.launch_metadata or {}
+
+        issued = timeutils.utcnow()
+        expires = issued + \
+            datetime.timedelta(seconds=CONF.api.jwt_identity_lifetime)
+
+        payload = {
+            'iss': CONF.api.jwt_identity_issuer,
+            'iat': issued,
+            'exp': expires,
+            'openstack.org': id_data
+        }
+
+        headers = {
+            'kid': CONF.api.jwt_identity_signing_key_id
+        }
+
+        with open(CONF.api.jwt_identity_signing_key_path) as f:
+            private_key = f.read()
+
+        jwt_payload = jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
+
+        return jsonutils.dump_as_bytes(jwt_payload)
 
     def _check_version(self, required, requested, versions=VERSIONS):
         return versions.index(requested) >= versions.index(required)
