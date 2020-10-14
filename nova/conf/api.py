@@ -222,6 +222,57 @@ Possible values:
 
 * Any string that is a valid domain name.
 """),
+    cfg.StrOpt("jwt_identity_signing_key_id",
+    default = "default-key-id",
+    help = """
+Key ID for the key used to sign the JWT Instance Identity.
+
+Set the ID of the key used to sign the JWT Instance Identity document. The
+value will be used to select a specific public key in a JWK Set for the
+purpose of validating the JWT Instance Identity document.
+
+Possible values:
+
+* Any trying that is a valid identifier for a key in a JWK Set
+"""),
+    cfg.StrOpt("jwt_identity_issuer",
+    default = "openstack",
+    help = """,
+Issuer for the JWT Instance Identity.
+
+Set this to represent the entity that issued the token. Will be deployment
+specific and could be the URL of a specific openstack region, or one
+representative of an organisation as a whole.
+
+Possible values: A specific server name or URL that identifies the entity
+that issued the token.
+"""),
+    cfg.IntOpt("jwt_identity_lifetime",
+    default = 3600,
+    min = 0,
+    help = """
+Validity period in seconds for a JWT Instance Identity.
+
+Set to the number of seconds that the JWT Instance Identity should be
+valid beyond the time it was retrieved from the metadata API. Each
+retrieved JWT Instance Identity will have validity starting from the
+time it is retrieved.
+service will have
+
+Possible values:
+
+* A positive integer
+"""),
+    cfg.StrOpt("jwt_identity_signing_key_path",
+    default = "",
+    help = """
+The path to a private key used to sign a JWT Instance Identity.
+
+Possible values:
+
+* Any string representing the path to the data file, or an empty string
+  (default).
+""")
 ]
 
 file_opts = [
