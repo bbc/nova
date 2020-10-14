@@ -16,6 +16,8 @@
 
 """Instance Metadata information."""
 
+import datetime
+import jwt
 import os
 import posixpath
 
@@ -86,6 +88,7 @@ VERSION = "version"
 CONTENT = "content"
 CONTENT_DIR = "content"
 MD_JSON_NAME = "meta_data.json"
+ID_JWT_NAME = "identity_data.jwt"
 VD_JSON_NAME = "vendor_data.json"
 VD2_JSON_NAME = "vendor_data2.json"
 NW_JSON_NAME = "network_data.json"
@@ -217,6 +220,7 @@ class InstanceMetadata(object):
                          VD_JSON_NAME: self._vendor_data,
                          VD2_JSON_NAME: self._vendor_data2,
                          MD_JSON_NAME: self._metadata_as_json,
+                         ID_JWT_NAME: self._identity_as_jwt,
                          NW_JSON_NAME: self._network_data,
                          VERSION: self._handle_version,
                          CONTENT: self._handle_content}
@@ -504,6 +508,30 @@ class InstanceMetadata(object):
             return jsonutils.dump_as_bytes(j)
 
         raise KeyError(path)
+
+    def _identity_as_jwt(self, version, path):
+        id_data = {'project-id': self.instance.project_id,
+                   'instance-id': self.instance.uuid,
+                   'image-id': self.instance.image_ref,
+                   'hostname': self.instance.hostname,
+                   'boot-roles': self.instance.system_metadata.get(
+                                     'boot_roles', '')}
+
+        payload = {'aud': 'audience-claim',
+                   'iat': datetime.datetime.utcnow(),
+                   'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=3600),
+                   'openstack': id_data}
+
+        with open("/etc/nova/jwtRS256.key", "r") as f:
+             private_key = f.read()
+
+        with open("/etc/nova/jwtRS256.id", "r") as f:
+             key_id = f.read()
+        key_id = key_id.strip()
+
+        jwt_payload = jwt.encode(payload, private_key, headers={'kid': key_id}, algorithm="RS256")
+
+        return jsonutils.dump_as_bytes(jwt_payload)
 
     def _check_version(self, required, requested, versions=VERSIONS):
         return versions.index(requested) >= versions.index(required)
