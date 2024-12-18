@@ -2141,7 +2141,8 @@ class API:
         raise exception.FixedIpNotFoundForInstance(
                 instance_uuid=instance.uuid, ip=address)
 
-    def _get_physnet_tunneled_info(self, context, neutron, net_id):
+    def _get_physnet_tunneled_info(
+            self, context, neutron, net_id, port_id=None):
         """Retrieve detailed network info.
 
         :param context: The request context.
@@ -2154,6 +2155,22 @@ class API:
             used for the physnet name.
         """
         if self.has_multi_provider_extension(client=neutron):
+            if port_id:
+                port = neutron.show_port(port_id,
+                                         fields='fixed_ips').get('port')
+                for fixed_ip in port.get('fixed_ips', []):
+                    subnet = neutron.show_subnet(fixed_ip['subnet_id'],
+                                                 fields='segment_id'
+                                                 ).get('subnet')
+                    if subnet.get('segment_id'):
+                        segment = neutron.show_segment(
+                            subnet.get('segment_id'),
+                            fields='physical_network'
+                            ).get('segment')
+                        physnet_name = segment.get('physical_network')
+                        if physnet_name:
+                            return physnet_name, False
+
             network = neutron.show_network(net_id,
                                            fields='segments').get('network')
             segments = network.get('segments', {})
@@ -2166,7 +2183,8 @@ class API:
                 # is to find a first segment that provides a physical network.
                 # TODO(vladikr): Additional work will be required to handle the
                 # case of multiple vlan segments associated with different
-                # physical networks.
+                # physical networks if a port is not yet assigned to one
+                # segment.
                 physnet_name = net.get('provider:physical_network')
                 if physnet_name:
                     return physnet_name, False
@@ -2315,7 +2333,7 @@ class API:
                  port_numa_policy, device_profile) = self._get_port_vnic_info(
                      context, neutron, request_net.port_id)
                 physnet, tunneled_ = self._get_physnet_tunneled_info(
-                    context, neutron, network_id)
+                    context, neutron, network_id, request_net.port_id)
 
                 if vnic_type in network_model.VNIC_TYPES_ACCELERATOR:
                     # get request groups from cyborg profile
