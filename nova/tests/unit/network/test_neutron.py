@@ -3643,6 +3643,94 @@ class TestAPI(TestAPIBase):
         self.assertFalse(tunneled)
 
     @mock.patch.object(neutronapi, 'get_client', return_value=mock.Mock())
+    def test_get_physnet_tunneled_info_multi_segment_port(
+            self, mock_get_client):
+        test_net = {'network': {'segments':
+                                    [{'provider:physical_network': 'physnet10',
+                                      'provider:segmentation_id': 1000,
+                                      'provider:network_type': 'vlan'},
+                                     {'provider:physical_network': 'physnet11',
+                                      'provider:segmentation_id': 2000,
+                                      'provider:network_type': 'vlan'}]}}
+        test_ext_list = {'extensions':
+                            [{'name': 'Multi Provider Network',
+                             'alias': 'multi-provider'}]}
+        test_port = {'port': {'fixed_ips': []}}
+
+        mock_client = mock_get_client.return_value
+        mock_client.list_extensions.return_value = test_ext_list
+        mock_client.show_port.return_value = test_port
+        mock_client.show_network.return_value = test_net
+        physnet_name, tunneled = self.api._get_physnet_tunneled_info(
+            self.context, mock_client, 'test-net', 'test-port')
+
+        mock_client.show_port.assert_called_once_with(
+            'test-port', fields='fixed_ips')
+        mock_client.show_network.assert_called_once_with(
+            'test-net', fields='segments')
+        self.assertEqual('physnet10', physnet_name)
+        self.assertFalse(tunneled)
+
+    @mock.patch.object(neutronapi, 'get_client', return_value=mock.Mock())
+    def test_get_physnet_tunneled_info_multi_segment_port_subnet(
+            self, mock_get_client):
+        test_ext_list = {'extensions':
+                            [{'name': 'Multi Provider Network',
+                             'alias': 'multi-provider'}]}
+        test_port = {'port': {'fixed_ips': [{'ip_address': '10.0.1.9',
+                                             'subnet_id': 'test-subnet'}]}}
+        test_subnet = {'subnet': {'segment_id': 'test-segment'}}
+        test_segment = {'segment': {'physical_network': 'physnet11'}}
+
+        mock_client = mock_get_client.return_value
+        mock_client.list_extensions.return_value = test_ext_list
+        mock_client.show_port.return_value = test_port
+        mock_client.show_subnet.return_value = test_subnet
+        mock_client.show_segment.return_value = test_segment
+        physnet_name, tunneled = self.api._get_physnet_tunneled_info(
+            self.context, mock_client, 'test-net', 'test-port')
+
+        mock_client.show_port.assert_called_once_with(
+            'test-port', fields='fixed_ips')
+        mock_client.show_subnet.assert_called_once_with(
+            'test-subnet', fields='segment_id')
+        mock_client.show_segment.assert_called_once_with(
+            'test-segment', fields='physical_network')
+        self.assertEqual('physnet11', physnet_name)
+        self.assertFalse(tunneled)
+
+    @mock.patch.object(neutronapi, 'get_client', return_value=mock.Mock())
+    def test_get_physnet_tunneled_info_multi_segment_port_no_segment(
+            self, mock_get_client):
+        test_net = {'network': {'provider:physical_network': 'physnet10',
+                                'provider:segmentation_id': 1000,
+                                'provider:network_type': 'vlan'}}
+        test_ext_list = {'extensions':
+                            [{'name': 'Multi Provider Network',
+                             'alias': 'multi-provider'}]}
+        test_port = {'port': {'fixed_ips': [{'ip_address': '10.0.1.9',
+                                             'subnet_id': 'test-subnet'}]}}
+        test_subnet = {'subnet': {'segment_id': None}}
+
+        mock_client = mock_get_client.return_value
+        mock_client.list_extensions.return_value = test_ext_list
+        mock_client.show_port.return_value = test_port
+        mock_client.show_subnet.return_value = test_subnet
+        mock_client.show_network.return_value = test_net
+        physnet_name, tunneled = self.api._get_physnet_tunneled_info(
+            self.context, mock_client, 'test-net', 'test-port')
+
+        mock_client.show_port.assert_called_once_with(
+            'test-port', fields='fixed_ips')
+        mock_client.show_subnet.assert_called_once_with(
+            'test-subnet', fields='segment_id')
+        mock_client.show_network.assert_called_with(
+            'test-net', fields=['provider:physical_network',
+                                'provider:network_type'])
+        self.assertEqual('physnet10', physnet_name)
+        self.assertFalse(tunneled)
+
+    @mock.patch.object(neutronapi, 'get_client', return_value=mock.Mock())
     def test_get_physnet_tunneled_info_vlan_with_multi_segment_ext(
             self, mock_get_client):
         test_net = {'network': {'provider:physical_network': 'physnet10',
@@ -6733,7 +6821,7 @@ class TestAPI(TestAPIBase):
         network_metadata, port_resource_requests, _ = result
         mock_get_dp_group.assert_called_once_with('smat_nic')
         mock_get_physnet_tunneled_info.assert_called_once_with(
-            self.context, mock.ANY, 'netN')
+            self.context, mock.ANY, 'netN', uuids.portid_1)
         self.assertEqual({'physnet1'}, network_metadata.physnets)
         self.assertEqual([rg], port_resource_requests)
 
