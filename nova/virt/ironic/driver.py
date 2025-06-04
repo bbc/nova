@@ -29,6 +29,7 @@ from urllib import parse as urlparse
 from openstack.baremetal.v1.node import PowerAction
 from openstack import exceptions as sdk_exc
 from openstack import utils as sdk_utils
+from oslo_concurrency import processutils
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_service import loopingcall
@@ -2225,3 +2226,8 @@ class IronicDriver(virt_driver.ComputeDriver):
         """IronicDriver manages port bindings for baremetal instances.
         """
         return True
+
+    def get_host_uptime(self):
+        """Returns the result of calling "uptime"."""
+        out, err = processutils.execute('env', 'LANG=C', 'uptime')
+        return out
