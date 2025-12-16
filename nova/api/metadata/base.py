@@ -554,7 +554,7 @@ class InstanceMetadata(object):
 
         jwt_payload = jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
 
-        return jsonutils.dump_as_bytes(jwt_payload)
+        return str(jwt_payload)
 
     def _check_version(self, required, requested, versions=VERSIONS):
         return versions.index(requested) >= versions.index(required)
